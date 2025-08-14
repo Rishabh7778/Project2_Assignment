@@ -1,17 +1,16 @@
-// src/TestApi.tsx
 import React, { useEffect } from 'react';
-import { fetchUsers, fetchUser } from './utils/api';
+import { fetchAllUsers, fetchUser } from './utils/api';
 
 export default function TestApi() {
   useEffect(() => {
-    fetchUsers(1)
-      .then((res) => console.log('fetchUsers result:', res))
-      .catch((err) => console.error('fetchUsers error:', err));
+    fetchAllUsers()
+      .then((res) => console.log('fetchAllUsers result:', res))
+      .catch((err: unknown) => console.error('fetchAllUsers error:', err));
 
     fetchUser(1)
       .then((res) => console.log('fetchUser result:', res))
-      .catch((err) => console.error('fetchUser error:', err));
+      .catch((err: unknown) => console.error('fetchUser error:', err));
   }, []);
 
-  // return <div>Test API — check the console</div>;
+  return <div>Test API — check the console</div>;
 }
