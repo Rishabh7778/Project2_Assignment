@@ -1,6 +1,6 @@
 import React, { useMemo, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { type UsersApiResponse, type User, fetchUsers } from '../utils/api';
+import { type User, fetchAllUsers } from '../utils/api';
 import { useDispatch, useSelector } from 'react-redux';
 import type { RootState, AppDispatch } from '../app/store';
 import UserCard from '../components/UserCard';
@@ -9,38 +9,47 @@ import SkeletonLoader from '../components/SkeletonLoader';
 import { setPage, setSearch } from '../app/uiSlice';
 import { useSearchParams } from 'react-router-dom';
 
+const USERS_PER_PAGE = 6;
+
 const UsersPage: React.FC = () => {
   const dispatch = useDispatch<AppDispatch>();
   const [params] = useSearchParams();
+
   const page = useSelector((s: RootState) => s.ui.page) ?? 1;
   const search = useSelector((s: RootState) => s.ui.search) ?? '';
 
-  // Sync URL params with Redux
-useEffect(() => {
-  const p = Number(params.get('page') || '1'); 
-  const q = params.get('search') || '';
-  if (p !== page) dispatch(setPage(p));
-  if (q !== search) dispatch(setSearch(q));
-}, [dispatch, params])
+  // Sync URL params with Redux on first mount
+  useEffect(() => {
+    const p = Number(params.get('page') || '1');
+    const q = params.get('search') || '';
+    if (p !== page) dispatch(setPage(p));
+    if (q !== search) dispatch(setSearch(q));
+  }, [dispatch, params]);
 
-  const { data, isLoading, error, isError } = useQuery<UsersApiResponse, Error>({
-    queryKey: ['users', page],
-    queryFn: () => fetchUsers(page),
+  // Fetch ALL users from API (both pages)
+  const { data, isLoading, error, isError } = useQuery<User[], Error>({
+    queryKey: ['users'],
+    queryFn: fetchAllUsers,
     staleTime: 5000,
     retry: 1,
   });
 
-  const users = (data as unknown as UsersApiResponse | undefined)?.data ?? [];
-
-  const filtered: User[] = useMemo(() => {
-    if (!users.length) return [];
-    if (!search.trim()) return users;
+  // Filter users by search
+  const filtered = useMemo(() => {
+    if (!data) return [];
+    if (!search.trim()) return data;
     const q = search.toLowerCase();
-    return users.filter((u: User) =>
+    return data.filter((u) =>
       `${u.first_name} ${u.last_name}`.toLowerCase().includes(q) ||
       u.email.toLowerCase().includes(q)
     );
-  }, [users, search]);
+  }, [data, search]);
+
+
+  const paginatedUsers = useMemo(() => {
+    const start = (page - 1) * USERS_PER_PAGE;
+    return filtered.slice(start, start + USERS_PER_PAGE);
+  }, [filtered, page]);
 
   return (
     <div className="container mx-auto p-4">
@@ -52,17 +61,19 @@ useEffect(() => {
 
       {isLoading && <SkeletonLoader />}
 
-      {!isLoading && !users.length && !isError && (
-        <div className="text-gray-500 text-center py-4">No users (empty response)</div>
+      {!isLoading && !paginatedUsers.length && !isError && (
+        <div className="text-gray-500 text-center py-4">No users found</div>
       )}
 
-      {!isLoading && users.length > 0 && (
+      {!isLoading && paginatedUsers.length > 0 && (
         <>
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 mt-2">
-            {filtered.map((u: User) => <UserCard key={u.id} user={u} />)}
+            {paginatedUsers.map((u) => (
+              <UserCard key={u.id} user={u} />
+            ))}
           </div>
 
-          <Pagination totalPages={(data as unknown as UsersApiResponse)?.total_pages ?? 1} />
+          <Pagination totalPages={Math.ceil(filtered.length / USERS_PER_PAGE)} />
         </>
       )}
     </div>
